@@ -5,6 +5,8 @@ from rest_framework import serializers
 
 from .models import SolicitudCompra
 import re
+import os
+from decimal import Decimal
 
 
 class MontoEstimadoField(serializers.DecimalField):
@@ -271,6 +273,14 @@ class SolicitudCompraSerializer(serializers.ModelSerializer):
         if proforma and not proforma.name.lower().endswith((".pdf", ".jpg", ".jpeg", ".png")):
             raise serializers.ValidationError({
                 "proforma": "La cotización debe ser PDF, JPG, JPEG o PNG."
+            })
+
+        # R01: limite de Caja Chica leido del .env
+        limite = Decimal(os.environ.get("SIA_LIMITE_CAJA_CHICA", "1000"))
+        monto = attrs.get("monto_estimado")
+        if monto is not None and monto > limite:
+            raise serializers.ValidationError({
+                "monto_estimado": f"Ninguna compra puede superar Bs {limite}."
             })
 
         return attrs
