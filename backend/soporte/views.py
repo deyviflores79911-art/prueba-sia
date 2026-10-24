@@ -301,6 +301,7 @@ def obtener_estado(
 # VALIDAR ESTADO DEL TICKET
 # ==========================================================
 
+# R05: flujo de estados controlado; cada accion valida el estado de origen con esta funcion
 def validar_estado_ticket(
     ticket,
     estados_permitidos
