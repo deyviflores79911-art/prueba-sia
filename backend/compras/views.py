@@ -490,7 +490,7 @@ class SolicitudCompraViewSet(
 
 
         # --------------------------------------------------
-        # SOLO EL AUTOR
+        # SOLO EL AUTOR   deyviiii
         # --------------------------------------------------
 
         if (
