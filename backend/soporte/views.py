@@ -3,6 +3,7 @@ from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.utils import timezone
+from django.db import transaction
 from django.core.files.base import ContentFile
 
 from rest_framework import (
@@ -1184,6 +1185,7 @@ class TicketViewSet(
         methods=["post"],
         url_path="designar-revision"
     )
+    @transaction.atomic
     def designar_revision(
         self,
         request,
@@ -1323,6 +1325,21 @@ class TicketViewSet(
         ahora = timezone.now()
 
 
+        # R07: limite de tickets activos por tecnico, con bloqueo de fila
+        import os
+        limite = int(os.environ.get("SIA_MAX_TICKETS_TECNICO", "5"))
+        type(tecnico).objects.select_for_update().get(pk=tecnico.pk)
+        activos = (
+            Ticket.objects
+            .filter(tecnico_asignado=tecnico, estado__codigo__in=["ASIGNADO", "EN_EJECUCION"])
+            .exclude(pk=ticket.pk)
+            .count()
+        )
+        if activos >= limite:
+            return Response(
+                {"detalle": f"El tecnico ya tiene {activos} tickets activos; el maximo es {limite}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         ticket.tecnico_asignado = tecnico
 
         ticket.estado = estado_asignado
