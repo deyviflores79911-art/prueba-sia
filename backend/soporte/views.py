@@ -1388,6 +1388,25 @@ class TicketViewSet(
     # 4. REALIZAR INSPECCIÓN TÉCNICA Y DIAGNÓSTICO
     # ======================================================
 
+    # R06: reabrir un ticket cerrado dentro del plazo
+    @action(detail=True, methods=["post"], url_path="reabrir")
+    def reabrir(self, request, pk=None):
+        import os
+        from datetime import timedelta
+        ticket = self.get_object()
+        if ticket.solicitante_id != request.user.id:
+            return Response({"detalle": "Solo el solicitante puede reabrir su ticket."}, status=status.HTTP_403_FORBIDDEN)
+        if not ticket.cerrado_en or not validar_estado_ticket(ticket, ["CERRADO"]):
+            return Response({"detalle": "El ticket no esta cerrado."}, status=status.HTTP_400_BAD_REQUEST)
+        dias = int(os.environ.get("SIA_DIAS_REAPERTURA", "7"))
+        if timezone.now() - ticket.cerrado_en > timedelta(days=dias):
+            return Response({"detalle": f"Solo se puede reabrir dentro de {dias} dias del cierre."}, status=status.HTTP_400_BAD_REQUEST)
+        estado = obtener_estado("EN_EJECUCION")
+        if not estado:
+            return Response({"detalle": "No existe el estado EN_EJECUCION."}, status=status.HTTP_400_BAD_REQUEST)
+        ticket.estado = estado
+        ticket.save(update_fields=["estado"])
+        return respuesta_ticket(ticket, "Ticket reabierto.", status.HTTP_200_OK)
     @action(detail=True, methods=["post"], url_path="iniciar-atencion")
     def iniciar_atencion(self, request, pk=None):
         if not tiene_permiso(request.user, "REALIZAR_INSPECCION_DIAGNOSTICO"):
