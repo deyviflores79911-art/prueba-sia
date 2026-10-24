@@ -579,6 +579,9 @@ class TicketViewSet(
 
 
         extra = {}
+        # R03: los tickets de Red siempre nacen con prioridad Alta
+        if serializer.validated_data.get("tipo_problema") == "RED":
+            extra["prioridad"] = "ALTA"
 
         if not serializer.validated_data.get("area"):
 
@@ -1053,6 +1056,9 @@ class TicketViewSet(
         )
 
 
+        # R03: aunque envien otra prioridad, Red queda en Alta
+        if ticket.tipo_problema == "RED":
+            prioridad = "ALTA"
         if prioridad not in SLA_POR_PRIORIDAD:
 
             return Response(
