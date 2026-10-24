@@ -590,6 +590,15 @@ class SolicitudCompraViewSet(
             solicitud.save()
             liberar_origen(solicitud, motivo, request)
             return Response(self.get_serializer(solicitud).data)
+        # R02: compras mayores a Bs 500 necesitan 3 cotizaciones de proveedores distintos
+        if solicitud.monto_estimado and solicitud.monto_estimado > 500:
+            cotizaciones = list(solicitud.cotizaciones.all())
+            proveedores = {c.proveedor.strip().lower() for c in cotizaciones}
+            if len(cotizaciones) < 3 or len(proveedores) < 3:
+                return Response(
+                    {"detalle": "Las compras mayores a Bs 500 requieren 3 cotizaciones de proveedores distintos."},
+                    status=400,
+                )
         from .expediente import documentos_faltantes
         faltantes = documentos_faltantes(solicitud)
         if faltantes:
