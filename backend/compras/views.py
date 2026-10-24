@@ -623,9 +623,15 @@ class SolicitudCompraViewSet(
 
     @action(detail=True, methods=["post"], url_path="visto-bueno-director")
     def visto_bueno_director(self, request, pk=None):
-        # Igual que certificar-daf: al dar el visto bueno, el expediente
-        # queda automáticamente disponible para Tesorería (desembolso).
-        return self._transicion(request, self.get_object(), "DAR_VISTO_BUENO", ["VERIFICADO_PENDIENTE_AUTORIZACION"], "APROBADO_PARA_DESEMBOLSO", "VISTO_BUENO_DIRECTOR", "Director autorizó; expediente derivado automáticamente a Tesorería para desembolso.")
+        solicitud = self.get_object()
+        # R08: nadie aprueba su propia compra
+        if solicitud.solicitante_id == request.user.id:
+            return Response({"detalle": "No puede aprobar su propia compra."}, status=403)
+        # R08: mayores a Bs 300 solo el grupo Jefe administrativo
+        if solicitud.monto_estimado and solicitud.monto_estimado > 300:
+            if not request.user.groups.filter(name="Jefe administrativo").exists():
+                return Response({"detalle": "Solo el Jefe administrativo aprueba compras mayores a Bs 300."}, status=403)
+        return self._transicion(request, solicitud, "DAR_VISTO_BUENO", ["VERIFICADO_PENDIENTE_AUTORIZACION"], "APROBADO_PARA_DESEMBOLSO", "VISTO_BUENO_DIRECTOR", "Director autorizo; expediente derivado automaticamente a Tesoreria para desembolso.")
 
     @action(detail=True, methods=["post"], url_path="rechazar")
     def rechazar(self, request, pk=None):
