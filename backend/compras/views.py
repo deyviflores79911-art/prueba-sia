@@ -142,6 +142,24 @@ def liberar_origen(solicitud, motivo, request):
         )
 
 
+def calcular_saldo_mes(excluir=None):
+    # R09: fondo mensual menos lo aprobado este mes por Caja Chica
+    import os
+    from decimal import Decimal
+    from django.db.models import Sum
+    from .models import SolicitudCompra
+    fondo = Decimal(os.environ.get("SIA_FONDO_MENSUAL", "5000"))
+    hoy = timezone.localtime()
+    aprobadas = SolicitudCompra.objects.filter(
+        via_adquisicion="CAJA_CHICA",
+        estado__in=["APROBADO_PARA_DESEMBOLSO", "FONDOS_DESEMBOLSADOS", "COMPRA_REGISTRADA", "COMPRADO_Y_ENTREGADO", "DESCARGO_PENDIENTE_LIQUIDACION", "CERRADO_ARCHIVADO"],
+        actualizado_en__year=hoy.year,
+        actualizado_en__month=hoy.month,
+    )
+    if excluir is not None:
+        aprobadas = aprobadas.exclude(pk=excluir)
+    gastado = aprobadas.aggregate(total=Sum("monto_estimado"))["total"] or Decimal("0")
+    return {"fondo": fondo, "gastado": gastado, "saldo": fondo - gastado}
 def respuesta_sin_permiso(codigo_permiso):
     return Response(
         {
@@ -621,11 +639,20 @@ class SolicitudCompraViewSet(
         # autorización del Director (BPMN: DAF -> DIRECTOR, sin escalas).
         return self._transicion(request, solicitud, "CERTIFICAR_PRESUPUESTO", ["EVALUADO_PENDIENTE_CERTIFICACION"], "VERIFICADO_PENDIENTE_AUTORIZACION", "CERTIFICAR_PRESUPUESTO", "Certificación emitida; expediente derivado al Director para autorizar la compra.")
 
+    @action(detail=False, methods=["get"], url_path="saldo-caja-chica")
+    def saldo_caja_chica(self, request):
+        return Response(calcular_saldo_mes())
     @action(detail=True, methods=["post"], url_path="visto-bueno-director")
     def visto_bueno_director(self, request, pk=None):
+        solicitud = self.get_object()
         # Igual que certificar-daf: al dar el visto bueno, el expediente
         # queda automáticamente disponible para Tesorería (desembolso).
-        return self._transicion(request, self.get_object(), "DAR_VISTO_BUENO", ["VERIFICADO_PENDIENTE_AUTORIZACION"], "APROBADO_PARA_DESEMBOLSO", "VISTO_BUENO_DIRECTOR", "Director autorizó; expediente derivado automáticamente a Tesorería para desembolso.")
+        # R09: no aprobar si deja el saldo del mes en negativo
+        if solicitud.via_adquisicion == "CAJA_CHICA" and solicitud.monto_estimado:
+            saldo = calcular_saldo_mes(excluir=solicitud.pk)["saldo"]
+            if solicitud.monto_estimado > saldo:
+                return Response({"detalle": f"Fondo del mes insuficiente: saldo Bs {saldo}."}, status=400)
+        return self._transicion(request, solicitud, "DAR_VISTO_BUENO", ["VERIFICADO_PENDIENTE_AUTORIZACION"], "APROBADO_PARA_DESEMBOLSO", "VISTO_BUENO_DIRECTOR", "Director autorizó; expediente derivado automáticamente a Tesorería para desembolso.")
 
     @action(detail=True, methods=["post"], url_path="rechazar")
     def rechazar(self, request, pk=None):
