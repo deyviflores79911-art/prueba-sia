@@ -608,6 +608,15 @@ class SolicitudCompraViewSet(
             solicitud.save()
             liberar_origen(solicitud, motivo, request)
             return Response(self.get_serializer(solicitud).data)
+        # R02: compras mayores a Bs 500 necesitan 3 cotizaciones de proveedores distintos
+        if solicitud.monto_estimado and solicitud.monto_estimado > 500:
+            cotizaciones = list(solicitud.cotizaciones.all())
+            proveedores = {c.proveedor.strip().lower() for c in cotizaciones}
+            if len(cotizaciones) < 3 or len(proveedores) < 3:
+                return Response(
+                    {"detalle": "Las compras mayores a Bs 500 requieren 3 cotizaciones de proveedores distintos."},
+                    status=400,
+                )
         from .expediente import documentos_faltantes
         faltantes = documentos_faltantes(solicitud)
         if faltantes:
@@ -645,8 +654,13 @@ class SolicitudCompraViewSet(
     @action(detail=True, methods=["post"], url_path="visto-bueno-director")
     def visto_bueno_director(self, request, pk=None):
         solicitud = self.get_object()
-        # Igual que certificar-daf: al dar el visto bueno, el expediente
-        # queda automáticamente disponible para Tesorería (desembolso).
+        # R08: nadie aprueba su propia compra
+        if solicitud.solicitante_id == request.user.id:
+            return Response({"detalle": "No puede aprobar su propia compra."}, status=403)
+        # R08: mayores a Bs 300 solo el grupo Jefe administrativo
+        if solicitud.monto_estimado and solicitud.monto_estimado > 300:
+            if not request.user.groups.filter(name="Jefe administrativo").exists():
+                return Response({"detalle": "Solo el Jefe administrativo aprueba compras mayores a Bs 300."}, status=403)
         # R09: no aprobar si deja el saldo del mes en negativo
         if solicitud.via_adquisicion == "CAJA_CHICA" and solicitud.monto_estimado:
             saldo = calcular_saldo_mes(excluir=solicitud.pk)["saldo"]

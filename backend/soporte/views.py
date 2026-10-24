@@ -3,6 +3,7 @@ from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.utils import timezone
+from django.db import transaction
 from django.core.files.base import ContentFile
 
 from rest_framework import (
@@ -137,9 +138,9 @@ def _categoria_por_defecto():
 
 SLA_POR_PRIORIDAD = {
     "CRITICA": 4,
-    "ALTA": 8,
+    "ALTA": 4,
     "MEDIA": 24,
-    "BAJA": 48,
+    "BAJA": 72,
 }
 
 
@@ -301,6 +302,7 @@ def obtener_estado(
 # VALIDAR ESTADO DEL TICKET
 # ==========================================================
 
+# R05: flujo de estados controlado; cada accion valida el estado de origen con esta funcion
 def validar_estado_ticket(
     ticket,
     estados_permitidos
@@ -579,6 +581,9 @@ class TicketViewSet(
 
 
         extra = {}
+        # R03: los tickets de Red siempre nacen con prioridad Alta
+        if serializer.validated_data.get("tipo_problema") == "RED":
+            extra["prioridad"] = "ALTA"
 
         if not serializer.validated_data.get("area"):
 
@@ -1053,6 +1058,9 @@ class TicketViewSet(
         )
 
 
+        # R03: aunque envien otra prioridad, Red queda en Alta
+        if ticket.tipo_problema == "RED":
+            prioridad = "ALTA"
         if prioridad not in SLA_POR_PRIORIDAD:
 
             return Response(
@@ -1177,6 +1185,7 @@ class TicketViewSet(
         methods=["post"],
         url_path="designar-revision"
     )
+    @transaction.atomic
     def designar_revision(
         self,
         request,
@@ -1316,6 +1325,21 @@ class TicketViewSet(
         ahora = timezone.now()
 
 
+        # R07: limite de tickets activos por tecnico, con bloqueo de fila
+        import os
+        limite = int(os.environ.get("SIA_MAX_TICKETS_TECNICO", "5"))
+        type(tecnico).objects.select_for_update().get(pk=tecnico.pk)
+        activos = (
+            Ticket.objects
+            .filter(tecnico_asignado=tecnico, estado__codigo__in=["ASIGNADO", "EN_EJECUCION"])
+            .exclude(pk=ticket.pk)
+            .count()
+        )
+        if activos >= limite:
+            return Response(
+                {"detalle": f"El tecnico ya tiene {activos} tickets activos; el maximo es {limite}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         ticket.tecnico_asignado = tecnico
 
         ticket.estado = estado_asignado
@@ -1388,6 +1412,25 @@ class TicketViewSet(
     # 4. REALIZAR INSPECCIÓN TÉCNICA Y DIAGNÓSTICO
     # ======================================================
 
+    # R06: reabrir un ticket cerrado dentro del plazo
+    @action(detail=True, methods=["post"], url_path="reabrir")
+    def reabrir(self, request, pk=None):
+        import os
+        from datetime import timedelta
+        ticket = self.get_object()
+        if ticket.solicitante_id != request.user.id:
+            return Response({"detalle": "Solo el solicitante puede reabrir su ticket."}, status=status.HTTP_403_FORBIDDEN)
+        if not ticket.cerrado_en or not validar_estado_ticket(ticket, ["CERRADO"]):
+            return Response({"detalle": "El ticket no esta cerrado."}, status=status.HTTP_400_BAD_REQUEST)
+        dias = int(os.environ.get("SIA_DIAS_REAPERTURA", "7"))
+        if timezone.now() - ticket.cerrado_en > timedelta(days=dias):
+            return Response({"detalle": f"Solo se puede reabrir dentro de {dias} dias del cierre."}, status=status.HTTP_400_BAD_REQUEST)
+        estado = obtener_estado("EN_EJECUCION")
+        if not estado:
+            return Response({"detalle": "No existe el estado EN_EJECUCION."}, status=status.HTTP_400_BAD_REQUEST)
+        ticket.estado = estado
+        ticket.save(update_fields=["estado"])
+        return respuesta_ticket(ticket, "Ticket reabierto.", status.HTTP_200_OK)
     @action(detail=True, methods=["post"], url_path="iniciar-atencion")
     def iniciar_atencion(self, request, pk=None):
         if not tiene_permiso(request.user, "REALIZAR_INSPECCION_DIAGNOSTICO"):
