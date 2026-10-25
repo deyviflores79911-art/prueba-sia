@@ -1002,6 +1002,13 @@ class RequerimientoMantenimientoViewSet(
         except InvalidOperation:
             return Response({"costo_estimado": "Monto estimado inválido."}, status=400)
 
+        # AÑADIDO R01
+        import os
+        limite = Decimal(os.environ.get("SIA_LIMITE_CAJA_CHICA", "1000"))
+        if costo is not None and costo > limite:
+            return Response({"costo_estimado": f"Ninguna compra puede superar Bs {limite}."}, status=400)
+        # FIN AÑADIDO R01
+
         requerimiento.requiere_reposicion = True
         requerimiento.producto_requerido = producto
         requerimiento.especificacion_producto = str(
