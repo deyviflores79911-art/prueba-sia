@@ -1841,6 +1841,16 @@ class TicketViewSet(
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # AÑADIDO R01
+        import os
+        limite = Decimal(os.environ.get("SIA_LIMITE_CAJA_CHICA", "1000"))
+        if costo_estimado is not None and costo_estimado > limite:
+            return Response(
+                {"costo_estimado": f"Ninguna compra puede superar Bs {limite}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        # FIN AÑADIDO R01
+
 
         ticket.requiere_compra = True
         ticket.cantidad_componente = cantidad
