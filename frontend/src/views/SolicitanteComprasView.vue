@@ -985,6 +985,9 @@ async function guardar() {
 
       mensajeModal.value =
         datos.detalle
+        // AÑADIDO R01
+        || datos.monto_estimado?.[0]
+        // FIN AÑADIDO R01
         || 'Revise la información ingresada.'
 
       return
