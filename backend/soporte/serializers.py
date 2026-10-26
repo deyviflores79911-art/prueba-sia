@@ -789,6 +789,10 @@ class TicketSerializer(
         ahora = timezone.now()
 
 
+        # AÑADIDO R04: un ticket resuelto o cerrado no se marca Vencido
+        if obj.estado and obj.estado.codigo in ("EN_VERIFICACION", "PENDIENTE_CONFORMIDAD", "PENDIENTE_INFORME_FINAL", "CERRADO"):
+            return "CUMPLIDO" if obj.actualizado_en and obj.actualizado_en <= obj.sla_fecha_limite else "INCUMPLIDO"
+        # FIN AÑADIDO R04
         if ahora > obj.sla_fecha_limite:
 
             return "VENCIDO"

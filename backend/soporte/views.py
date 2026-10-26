@@ -586,6 +586,11 @@ class TicketViewSet(
         if categoria_r03 and categoria_r03.codigo in ("RED", "SERVIDORES"):
             extra["prioridad"] = "ALTA"
 
+        # AÑADIDO R04: si el ticket nace con prioridad, su fecha limite se calcula al crearlo
+        if extra.get("prioridad") in SLA_POR_PRIORIDAD:
+            extra["sla_horas"] = SLA_POR_PRIORIDAD[extra["prioridad"]]
+            extra["sla_fecha_limite"] = timezone.now() + timedelta(hours=extra["sla_horas"])
+        # FIN AÑADIDO R04
         if not serializer.validated_data.get("area"):
 
             area_defecto = _area_por_defecto()
