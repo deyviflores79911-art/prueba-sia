@@ -98,6 +98,8 @@
           <p>La contraseña debe contener:</p>
 
           <ul>
+            <!-- MODIFICADO R10 - antes:
+                 <li>Mínimo 8 caracteres</li> -->
             <li>Mínimo 10 caracteres</li>
             <li>Una letra mayúscula</li>
             <li>Una letra minúscula</li>
