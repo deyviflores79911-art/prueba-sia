@@ -208,7 +208,7 @@ AUTH_PASSWORD_VALIDATORS = [
         'OPTIONS': {
             # MODIFICADO R10 - antes:
             #     'min_length': 8,
-            'min_length': 10,
+            'min_length': 8,
         },
     },
 
