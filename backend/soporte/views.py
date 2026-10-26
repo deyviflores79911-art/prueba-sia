@@ -1059,6 +1059,14 @@ class TicketViewSet(
         )
 
 
+        # AÑADIDO R03: el jefe de UTIC define la categoria al clasificar
+        categoria_id = request.data.get("categoria")
+        if categoria_id:
+            categoria_nueva = CategoriaTicket.objects.filter(pk=categoria_id).first()
+            if categoria_nueva is None:
+                return Response({"categoria": "Categoría inválida."}, status=status.HTTP_400_BAD_REQUEST)
+            ticket.categoria = categoria_nueva
+        # FIN AÑADIDO R03
         # MODIFICADO R03 - antes: se revisaba tipo_problema; ahora la categoria
         if ticket.categoria and ticket.categoria.codigo in ("RED", "SERVIDORES"):
             prioridad = "ALTA"
@@ -1143,6 +1151,8 @@ class TicketViewSet(
         ticket.save(
             update_fields=[
                 "prioridad",
+                # AÑADIDO R03
+                "categoria",
                 "criterio_tecnico",
                 "sla_horas",
                 "sla_fecha_limite",
