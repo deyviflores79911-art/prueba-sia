@@ -421,6 +421,15 @@
                 >
                   Verificar funcionamiento
                 </button>
+                <!-- AÑADIDO R06: el solicitante reabre su ticket cerrado (maximo 7 dias) -->
+                <button
+                  v-if="item.proceso === 'SOPORTE' && item.estado_codigo === 'CERRADO'"
+                  class="edit"
+                  @click="reabrirTicketR06(item)"
+                >
+                  Reabrir
+                </button>
+                <!-- FIN AÑADIDO R06 -->
 
                 <button
                   v-if="item.proceso === 'MANTENIMIENTO' && item.estado_codigo === 'INFORME_REGISTRADO'"
@@ -2439,6 +2448,21 @@ function abrirVerificacion(item) {
   mostrarVerificacion.value = true
 }
 
+// AÑADIDO R06: llamar a la accion reabrir del backend y mostrar el resultado
+async function reabrirTicketR06(item) {
+  try {
+    const respuesta = await fetch(`/api/soporte/tickets/${item.id}/reabrir/`, { method: 'POST', headers: authHeaders() })
+    let datos = {}
+    try { datos = await respuesta.json() } catch { datos = {} }
+    mensajeResultado.value = respuesta.ok
+      ? { titulo: 'Ticket reabierto', texto: 'El ticket volvió a En proceso para una nueva atención.' }
+      : { titulo: 'No se pudo reabrir', texto: datos.detalle || 'No fue posible reabrir el ticket.' }
+    if (respuesta.ok) await cargarTodo()
+  } catch {
+    mensajeResultado.value = { titulo: 'No se pudo reabrir', texto: 'No fue posible comunicarse con el servidor.' }
+  }
+}
+// FIN AÑADIDO R06
 function cerrarVerificacion() {
   mostrarVerificacion.value = false
   solicitudSeleccionada.value = null
