@@ -1343,7 +1343,7 @@ class TicketViewSet(
 
         # R07: limite de tickets activos por tecnico, con bloqueo de fila
         import os
-        limite = int(os.environ.get("SIA_MAX_TICKETS_TECNICO", "5"))
+        limite = int(os.environ.get("SIA_MAX_TICKETS_TECNICO", "1"))
         type(tecnico).objects.select_for_update().get(pk=tecnico.pk)
         activos = (
             Ticket.objects
