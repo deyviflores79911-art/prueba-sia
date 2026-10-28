@@ -1347,7 +1347,8 @@ class TicketViewSet(
         type(tecnico).objects.select_for_update().get(pk=tecnico.pk)
         activos = (
             Ticket.objects
-            .filter(tecnico_asignado=tecnico, estado__codigo__in=["ASIGNADO", "EN_EJECUCION"])
+            # MODIFICADO R07 - antes: estado__codigo__in=["ASIGNADO", "EN_EJECUCION"] (faltaba EN_DIAGNOSTICO)
+            .filter(tecnico_asignado=tecnico, estado__codigo__in=["ASIGNADO", "EN_DIAGNOSTICO", "EN_EJECUCION"])
             .exclude(pk=ticket.pk)
             .count()
         )
